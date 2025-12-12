@@ -164,7 +164,7 @@ def main():
                 logger.info('Проверяются сообщения о статусе домашки')
                 if last_message != message:
                     if send_message(bot, message) is True:
-                        last_message = message                  
+                        last_message = message
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}'
