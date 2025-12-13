@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exception import InvalidResponseCode
+from exceptions import InvalidResponseCode
 
 load_dotenv()
 
