@@ -1,12 +1,13 @@
 import logging
 import os
 import time
+from http import HTTPStatus
 
 import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from Exception import InvalidResponseCode
+from exception import InvalidResponseCode
 
 load_dotenv()
 
@@ -34,7 +35,7 @@ formatter = logging.Formatter(
 )
 
 file_handler = logging.FileHandler(
-    filename='main.log',
+    filename=__file__ + '.log',
     mode='w',
     encoding='utf-8'
 )
@@ -56,7 +57,7 @@ def check_tokens():
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
     }
     for token, value in tokens.items():
-        if value is None:
+        if not value:
             logger.critical(f'{token} не присвоено значение')
             raise SystemExit(f'{token} не присвоено значение')
 
@@ -91,13 +92,14 @@ def get_api_answer(timestamp):
     )
     try:
         response = requests.get(**data_for_request)
-        response.raise_for_status()
-    except requests.RequestException():
+    except requests.RequestException as error:
         raise ConnectionError(
-            'Запрос завершился ошибкой. URL: {url}, headers: {headers},'
-            'params: {params}'.format(**data_for_request)
+            'Запрос завершился ошибкой.URL: {url}, headers: {headers},'
+            'params: {params}, ошибка: {error}'.format(
+                **data_for_request, error=error
+            )
         )
-    if response.status_code != 200:
+    if response.status_code != HTTPStatus.OK:
         raise InvalidResponseCode(
             f'Неверный код ответа {response.status_code} {response.reason},'
             f'ответ: {response.text}'
@@ -109,18 +111,13 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Функция проверяет ответ API на соответствие ее документации."""
     if not isinstance(response, dict):
-        logger.warning('response не преобразован в словарь')
         raise TypeError('Ответ API не словарь')
     if 'homeworks' not in response:
-        logger.warning('Ключа homeworks нет в API ответа.')
         raise KeyError('Ключа homeworks нет в API ответа.')
-    if not isinstance(response['homeworks'], list):
-        logger.warning('Значение homeworks не список')
+    homeworks = response['homeworks']
+    if not isinstance(homeworks, list):
         raise TypeError('Ключ homeworks не список')
-    if not isinstance(response['current_date'], int):
-        logger.warning('Значение current_date не целое число')
-        raise TypeError('Ключ current_date не целое число')
-    return response['homeworks']
+    return homeworks
 
 
 def parse_status(homework):
@@ -157,24 +154,17 @@ def main():
             if homeworks == []:
                 logger.debug('Обновлений статуса нет. Список homeworks пуст.')
                 continue
-            else:
-                homework = homeworks[0]
-                logger.info('Есть обновления. Получаю статус домашней работы')
-                message = parse_status(homework)
-                logger.info('Проверяются сообщения о статусе домашки')
-                if last_message != message:
-                    if send_message(bot, message) is True:
-                        last_message = message
+            homework = homeworks[0]
+            logger.info('Есть обновления. Получаю статус домашней работы')
+            message = parse_status(homework)
+            logger.info('Проверяются сообщения о статусе домашки')
+            if last_message != message and send_message(bot, message):
+                last_message = message
+                timestamp = response.get('current_date')
         except Exception as error:
-            logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}'
-            send_message(bot, message)
-            raise
+            logger.error(error, exc_info=True)
+            if last_message != message and send_message(bot, message):
+                last_message = message
         finally:
-            timestamp = response.get('current_date')
-            logger.info('Следующая итерация через 10 минут.')
             time.sleep(RETRY_PERIOD)
-
-
-if __name__ == '__main__':
-    main()
