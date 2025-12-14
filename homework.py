@@ -157,10 +157,9 @@ def main():
             homework = homeworks[0]
             logger.info('Есть обновления. Получаю статус домашней работы')
             message = parse_status(homework)
-            logger.info('Проверяются сообщения о статусе домашки')
             if last_message != message and send_message(bot, message):
                 last_message = message
-                timestamp = response.get('current_date')
+                timestamp = response.get('current_date', timestamp)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(error, exc_info=True)
@@ -168,3 +167,7 @@ def main():
                 last_message = message
         finally:
             time.sleep(RETRY_PERIOD)
+
+
+if __name__ == '__main__':
+    main()
